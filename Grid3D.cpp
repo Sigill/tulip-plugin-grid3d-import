@@ -1,4 +1,5 @@
-#include <tulip/TulipPlugin.h>
+#include <tulip/ImportModule.h>
+#include <tulip/TulipPluginHeaders.h>
 #include <math.h>
 #include <stdexcept>
 
@@ -67,15 +68,17 @@ const char *paramHelp[] = {
 
 class Grid3D: public ImportModule {
 public:
-	Grid3D(AlgorithmContext context) :
+	PLUGININFORMATIONS(PLUGIN_NAME, "Cyrille Faucheux", "2011-06-23", "", "1.0", "Graph")
+
+	Grid3D(PluginContext *context) :
 		ImportModule(context)
 	{
-		addParameter< unsigned int >     ( "Width",        paramHelp[0], "2");
-		addParameter< unsigned int >     ( "Height",       paramHelp[1], "2");
-		addParameter< unsigned int >     ( "Depth",        paramHelp[2], "2");
-		addParameter< StringCollection > ( "Connectivity", paramHelp[3], "0;4;8");
-		addParameter< bool >             ( "Positionning", paramHelp[4], "true");
-		addParameter< double >           ( "Spacing",      paramHelp[5], "1.0");
+		addInParameter< unsigned int >     ( "Width",        paramHelp[0], "2");
+		addInParameter< unsigned int >     ( "Height",       paramHelp[1], "2");
+		addInParameter< unsigned int >     ( "Depth",        paramHelp[2], "2");
+		addInParameter< StringCollection > ( "Connectivity", paramHelp[3], "0;4;8");
+		addInParameter< bool >             ( "Positionning", paramHelp[4], "true");
+		addInParameter< double >           ( "Spacing",      paramHelp[5], "1.0");
 	}
 	~Grid3D() {}
 
@@ -261,4 +264,4 @@ public:
 	}
 };
 
-IMPORTPLUGINOFGROUP(Grid3D, PLUGIN_NAME, "Cyrille Faucheux", "2011-06-23", "", "1.0", "Graphs")
+PLUGIN(Grid3D);
