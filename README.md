@@ -2,7 +2,7 @@
 
 ## Description
 
-These plugins allow to generate graphs whose structure is a 3D grid
+This plugin allow to generate graphs whose structure is a 3D grid
 
 ## Build
 
