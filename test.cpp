@@ -1,7 +1,8 @@
 #include <iostream>
+#include <tulip/TlpTools.h>
+#include <tulip/PluginLibraryLoader.h>
 #include <tulip/Graph.h>
 #include <tulip/StringCollection.h>
-#include <tulip/PluginLibraryLoader.h>
 
 using namespace std;
 using namespace tlp;
