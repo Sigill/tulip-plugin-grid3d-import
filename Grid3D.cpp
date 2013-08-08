@@ -158,9 +158,10 @@ public:
 
 		int i = 0, j = 0, k = 0, progress = 0;
 		const int lastW = width - 1, lastH = height - 1, lastD = depth - 1;
-		const double s = (1.0 + spacing);
 		vector<node>::const_iterator nodesIterator;
-		LayoutProperty *layout = graph->getProperty<LayoutProperty> ("viewLayout");
+		LayoutProperty *layout = graph->getProperty< LayoutProperty > ("viewLayout");
+		SizeProperty *size = graph->getProperty< SizeProperty > ("viewSize");
+		size->setAllNodeValue(Size(spacing, spacing, spacing));
 
 #define REL_IT(it, dw, dh, dd) *((it + (dd) * width * height + (dh) * width + (dw)))
 #define NOTLAST_W (i < lastW)
@@ -171,12 +172,12 @@ public:
 #define NOTFIRST_D (k > 0)
 
 		if(pluginProgress)
-			pluginProgress->setComment("Creating edges");
+			pluginProgress->setComment("Positionning nodes and creating edges");
 
 		for(nodesIterator = nodes.begin(); nodesIterator < nodes.end(); ++nodesIterator) {
 
 			if(positionning) {
-				layout->setNodeValue(*nodesIterator, Coord(i * s, j * s, k * s));
+				layout->setNodeValue(*nodesIterator, Coord(i * spacing, j * spacing, k * spacing));
 			}
 
 			if(c4 || c8) {
