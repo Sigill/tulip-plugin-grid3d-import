@@ -15,106 +15,248 @@ using namespace tlp;
 
 const string PLUGIN_NAME("Grid 3D");
 
+#define NTYPES "Circular;Square"
+
 namespace {
+const char * NeighorhoodTypes = NTYPES;
 const char *paramHelp[] = {
-	// Width
+	// 0 Width
 	HTML_HELP_OPEN()
 		HTML_HELP_DEF("Type", "Unsigned int")
 		HTML_HELP_DEF("Default", "2")
 		HTML_HELP_BODY()
-		"This parameter defines the grid's width."
+		"The grid's width."
 		HTML_HELP_CLOSE(),
 
-	// Height
+	// 1 Height
 	HTML_HELP_OPEN()
 		HTML_HELP_DEF("Type", "Unsigned int")
 		HTML_HELP_DEF("Default", "2")
 		HTML_HELP_BODY()
-		"This parameter defines the grid's height."
+		"The grid's height."
 		HTML_HELP_CLOSE(),
 
-	// Depth
+	// 2 Depth
 	HTML_HELP_OPEN()
 		HTML_HELP_DEF("Type", "Unsigned int")
 		HTML_HELP_DEF("Default", "2")
 		HTML_HELP_BODY()
-		"This parameter defines the grid's depth."
+		"The grid's depth."
 		HTML_HELP_CLOSE(),
 
-	//Connectivity
+	// 3 Neighborhood radius
 	HTML_HELP_OPEN()
-		HTML_HELP_DEF("Type", "Integer")
-		HTML_HELP_DEF("Values", "0;4;8")
-		HTML_HELP_DEF("Default", "4")
+		HTML_HELP_DEF("Type", "Double")
+		HTML_HELP_DEF("Default", "0")
 		HTML_HELP_BODY()
-		"This parameter defines the connectivity number of each node."
+		"The radius of the generated neighborhood (this is not affected by the Spacing parameter)."
 		HTML_HELP_CLOSE(),
 
-	// Positionning
+	// 4 Neighborhood type
+	HTML_HELP_OPEN()
+		HTML_HELP_DEF("type", "String")
+		HTML_HELP_DEF("Values", NTYPES)
+		HTML_HELP_DEF("Default", "Circular")
+		HTML_HELP_BODY()
+		"The type of neighborhood to build."
+		HTML_HELP_CLOSE(),
+
+	// 5 Positionning
 	HTML_HELP_OPEN()
 		HTML_HELP_DEF("Type", "Boolean")
 		HTML_HELP_DEF("Default", "true")
 		HTML_HELP_BODY()
-		"This parameter indicates if the nodes should be positionned in space."
+		"Indicates if the nodes should be positionned in space."
 		HTML_HELP_CLOSE(),
 
-	// Spacing
+	// 6 Spacing
 	HTML_HELP_OPEN()
 		HTML_HELP_DEF("Type", "Double")
 		HTML_HELP_DEF("Default", "1.0")
 		HTML_HELP_BODY()
-		"This parameter defines the spacing between each node in the grid."
+		"The spacing between each node in the grid."
 };
+}
+
+// This class is to be replaced by tlp::Vec3i as soon as
+// https://sourceforge.net/p/auber/bugs/728/ is corrected
+// //////////////////////////////////////////////////////
+class Vec3int {
+private:
+	int _x, _y, _z;
+
+public:
+	Vec3int():
+		_x(0), _y(0), _z(0) {}
+
+	Vec3int(int __x, int __y, int __z):
+		_x(__x), _y(__y), _z(__z) {}
+
+	Vec3int(const Vec3int &o):
+		_x(o.x()), _y(o.y()), _z(o.z()) {}
+
+	int x() const { return _x; }
+	int y() const { return _y; }
+	int z() const { return _z; }
+
+	Vec3int& operator+=(const Vec3int& o)
+	{
+		_x += o.x();
+		_y += o.y();
+		_z += o.z();
+
+		return *this;
+	}
+
+	Vec3int& operator-=(const Vec3int& o)
+	{
+		_x -= o.x();
+		_y -= o.y();
+		_z -= o.z();
+
+		return *this;
+	}
+
+	double norm() const
+	{
+		return sqrt(_x*_x + _y*_y + _z*_z);
+	}
+
+	double dist(const Vec3int& o) const;
+};
+
+Vec3int operator+(const Vec3int &a, const Vec3int &b)
+{
+	return Vec3int(a) += b;
+}
+
+Vec3int operator-(const Vec3int &a, const Vec3int &b)
+{
+	return Vec3int(a) -= b;
+}
+
+double Vec3int::dist(const Vec3int& o) const
+{
+	Vec3int v = Vec3int(*this) - o;
+	return v.norm();
+}
+
+/*
+ostream& operator<<(ostream& out, const Vec3int& vec)
+{
+	out << "(" << vec.x() << ", " << vec.y() << ", " << vec.z() << ")";
+	return out;
+}
+*/
+// //////////////////////////////////////////////////////
+
+void buildManhattanNeighborhood(std::vector< Vec3int > *offsets, float radius, bool is2D)
+{
+	int r = (int)radius;
+
+	for(int k = -r; k <= r; ++k) {
+		if(is2D && k != 0)
+			continue;
+
+		for(int j = -r; j <= r; ++j) {
+			for(int i = -r; i <= r; ++i) {
+				if(!(i == 0 && j == 0 && k == 0))
+					offsets->push_back(Vec3int(i, j, k));
+			}
+		}
+	}
+}
+
+void buildEuclidianNeighborhood(std::vector< Vec3int > *offsets, float radius, bool is2D)
+{
+	int r = (int)radius;
+
+	for(int k = -r; k <= r; ++k) {
+		if(is2D && k != 0)
+			continue;
+
+		for(int j = -r; j <= r; ++j) {
+			for(int i = -r; i <= r; ++i) {
+				if(!(i == 0 && j == 0 && k == 0)) {
+					Vec3int offset(i, j, k);
+
+					// std::cout << "Norm of " << offset << " is: " << offset.norm() << std::endl;
+
+					if(offset.norm() <= radius)
+						offsets->push_back(offset);
+				}
+			}
+		}
+	}
 }
 
 class Grid3D: public ImportModule {
 public:
-	PLUGININFORMATIONS(PLUGIN_NAME, "Cyrille Faucheux", "2011-06-23", "", "1.0", "Graph")
+	PLUGININFORMATIONS(PLUGIN_NAME, "Cyrille Faucheux", "2011-06-23", "", "1.1", "Graph")
 
 	Grid3D(PluginContext *context) :
 		ImportModule(context)
 	{
-		addInParameter< unsigned int >     ( "Width",        paramHelp[0], "2");
-		addInParameter< unsigned int >     ( "Height",       paramHelp[1], "2");
-		addInParameter< unsigned int >     ( "Depth",        paramHelp[2], "2");
-		addInParameter< StringCollection > ( "Connectivity", paramHelp[3], "0;4;8");
-		addInParameter< bool >             ( "Positionning", paramHelp[4], "true");
-		addInParameter< double >           ( "Spacing",      paramHelp[5], "1.0");
+		addInParameter< unsigned int >     ("Width",                 paramHelp[0], "2");
+		addInParameter< unsigned int >     ("Height",                paramHelp[1], "2");
+		addInParameter< unsigned int >     ("Depth",                 paramHelp[2], "2");
+		addInParameter< double >           ("Neighborhood radius",   paramHelp[3], "0");
+		addInParameter< StringCollection > ("Neighborhood type",     paramHelp[4], NeighorhoodTypes, false);
+		addInParameter< bool >             ("Positionning",          paramHelp[5], "true");
+		addInParameter< double >           ("Spacing",               paramHelp[6], "1.0");
 	}
 	~Grid3D() {}
 
 	bool importGraph()
 	{
-		int width = 10, height = 10, depth = 10, conn = 4;
-		StringCollection connectivity;
+		int width = 10, height = 10, depth = 10;
+		double neighborhood_radius;
+		StringCollection neighborhood_type;
 		bool positionning = true;
 		double spacing = 1.0;
+		std::vector<Vec3int> offsets;
 
 		try {
 			if(dataSet == NULL)
 				throw std::runtime_error("No dataset provided.");
 
-			CHECK_PROP_PROVIDED("Width",        width);
-			CHECK_PROP_PROVIDED("Height",       height);
-			CHECK_PROP_PROVIDED("Depth",        depth);
-			CHECK_PROP_PROVIDED("Spacing",      spacing);
-			CHECK_PROP_PROVIDED("Positionning", positionning);
-			CHECK_PROP_PROVIDED("Connectivity", connectivity);
+			CHECK_PROP_PROVIDED("Width",               width);
+			CHECK_PROP_PROVIDED("Height",              height);
+			CHECK_PROP_PROVIDED("Depth",               depth);
+			CHECK_PROP_PROVIDED("Spacing",             spacing);
+			CHECK_PROP_PROVIDED("Positionning",        positionning);
+			CHECK_PROP_PROVIDED("Neighborhood radius", neighborhood_radius);
 
 			if(width <= 0)
-				throw std::runtime_error("Parameter \"Width\" must be a positive number");
+				throw std::runtime_error("Parameter \"Width\" must be positive");
 			if(height <= 0)
-				throw std::runtime_error("Parameter \"Height\" must be a positive number");
+				throw std::runtime_error("Parameter \"Height\" must be positive");
 			if(depth <= 0)
-				throw std::runtime_error("Parameter \"Depthh\" must be a positive number");
+				throw std::runtime_error("Parameter \"Depth\" must be positive");
 
 			if(spacing <= 0.0)
-				throw std::runtime_error("Parameter \"Spacing\" must be a positive positive");
+				throw std::runtime_error("Parameter \"Spacing\" must be positive");
+
+			if(neighborhood_radius >= 0) {
+				if(neighborhood_radius > 0) {
+					CHECK_PROP_PROVIDED("Neighborhood type", neighborhood_type);
+
+					if(neighborhood_type.getCurrentString().compare("Circular") == 0) {
+						buildEuclidianNeighborhood(&offsets, neighborhood_radius, depth == 1);
+					} else if(neighborhood_type.getCurrentString().compare("Square") == 0) {
+						buildManhattanNeighborhood(&offsets, neighborhood_radius, depth == 1);
+					} else {
+						throw std::runtime_error("Unknown neighborhood type.");
+					}
+				}
+			} else {
+				throw std::runtime_error("Parameter \"Neighborhood radius\" must be positive or null");
+			}
 
 		} catch (std::runtime_error &ex) {
-			if(this->pluginProgress) {
+			if(this->pluginProgress)
 				this->pluginProgress->setError(ex.what());
-			}
+
 			return false;
 		}
 
@@ -122,9 +264,6 @@ public:
 		graph->setAttribute("height", height);
 		graph->setAttribute("depth",  depth);
 
-		conn = (connectivity.getCurrentString().compare("8") == 0 ? 8 : (connectivity.getCurrentString().compare("4") == 0 ? 4 : 0));
-		const bool c4 = (conn == 4);
-		const bool c8 = (conn == 8);
 		const int nbNodes = width * height * depth;
 
 		vector<node> nodes; nodes.reserve(nbNodes);
@@ -133,43 +272,14 @@ public:
 		if(!positionning)
 			graph->getProperty<LayoutProperty>("viewLayout")->setAllNodeValue(Coord(0, 0, 0));
 
-		// compute nb edges
-		unsigned int nbEdges = 0;
-		if(c4 || c8) {
-			nbEdges += (width - 1) * height; // X edges
-			nbEdges += (height - 1) * width; // Y edges
-
-			if(c8)
-				nbEdges += 2 * (width - 1) * (height - 1); // XY edges
-
-			nbEdges *= depth; // For each plane
-
-			nbEdges += (depth - 1) * (width * height); // Z edges
-
-			if(c8) {
-				nbEdges += 2 * (width - 1) * height * (depth - 1); // XZ diagonal edges
-				nbEdges += 2 * (height - 1) * width * (depth - 1); // YZ diagonal edges
-				nbEdges += 4 * (width - 1) * (height - 1) * (depth - 1); // Cross-planes diagonal edges
-			}
-		}
-
-		vector<pair<node, node> > ends; ends.reserve(nbEdges);
-		vector<edge> edges; edges.reserve(nbEdges);
+		SizeProperty *size = graph->getProperty< SizeProperty > ("viewSize");
+		size->setAllNodeValue(Size(spacing / 2.0, spacing / 2.0, spacing / 2.0));
 
 		int i = 0, j = 0, k = 0, progress = 0;
-		const int lastW = width - 1, lastH = height - 1, lastD = depth - 1;
 		vector<node>::const_iterator nodesIterator;
 		LayoutProperty *layout = graph->getProperty< LayoutProperty > ("viewLayout");
-		SizeProperty *size = graph->getProperty< SizeProperty > ("viewSize");
-		size->setAllNodeValue(Size(spacing, spacing, spacing));
 
 #define REL_IT(it, dw, dh, dd) *((it + (dd) * width * height + (dh) * width + (dw)))
-#define NOTLAST_W (i < lastW)
-#define NOTLAST_H (j < lastH)
-#define NOTLAST_D (k < lastD)
-#define NOTFIRST_W (i > 0)
-#define NOTFIRST_H (j > 0)
-#define NOTFIRST_D (k > 0)
 
 		if(pluginProgress)
 			pluginProgress->setComment("Positionning nodes and creating edges");
@@ -180,67 +290,20 @@ public:
 				layout->setNodeValue(*nodesIterator, Coord(i * spacing, j * spacing, k * spacing));
 			}
 
-			if(c4 || c8) {
-				if(NOTLAST_W) {
-					// X edges
-					ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 1, 0, 0)));
-				}
-				if(NOTLAST_H) {
-					// Y edges
-					ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 0, 1, 0)));
-				}
-				if(NOTLAST_D) {
-					// Z edges
-					ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 0, 0, 1)));
-				}
+			if(!offsets.empty()) {
+				Vec3int currentPosition(i, j, k);
 
-				if(c8) {
-					if(NOTLAST_H) {
-						// XY plane diagonal edges
-						if(NOTFIRST_W) {
-							ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, -1, 1, 0)));
-						}
-						if(NOTLAST_W) {
-							ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 1, 1, 0)));
-						}
-					}
+				for(std::vector< Vec3int >::const_iterator offsetIterator = offsets.begin(); offsetIterator < offsets.end(); ++offsetIterator) {
+					Vec3int offset(*offsetIterator);
+					Vec3int otherPosition = currentPosition + offset;
 
-					if(NOTLAST_D) {
-						// XZ plane diagonal edges
-						if(NOTFIRST_W) {
-							ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, -1, 0, 1)));
-						}
-						if(NOTLAST_W) {
-							ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 1, 0, 1)));
-						}
-
-						// YZ plane diagonal edges
-						if(NOTFIRST_H) {
-							ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 0, -1, 1)));
-						}
-						if(NOTLAST_H) {
-							ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 0, 1, 1)));
-						}
-					}
-
-					// Cross plane diagonal edges
-					if(NOTLAST_D) {
-						if(NOTFIRST_W) {
-							if(NOTFIRST_H) {
-								ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, -1, -1, 1)));
-							}
-							if(NOTLAST_H) {
-								ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, -1, 1, 1)));
-							}
-						}
-						if(NOTLAST_W) {
-							if(NOTFIRST_H) {
-								ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 1, -1, 1)));
-							}
-							if(NOTLAST_H) {
-								ends.push_back(pair<node, node>(*nodesIterator, REL_IT(nodesIterator, 1, 1, 1)));
-							}
-						}
+					if((otherPosition.x() >= 0) && (otherPosition.x() < width) &&
+					   (otherPosition.y() >= 0) && (otherPosition.y() < height) &&
+					   (otherPosition.z() >= 0) && (otherPosition.z() < depth))
+					{
+						node v = REL_IT(nodesIterator, offset.x(), offset.y(), offset.z());
+						if(!graph->existEdge(*nodesIterator, v, false).isValid())
+							graph->addEdge(*nodesIterator, v);
 					}
 				}
 			}
@@ -258,9 +321,6 @@ public:
 			if(pluginProgress)
 				pluginProgress->progress(++progress, nbNodes);
 		}
-
-		if(c4 || c8)
-			graph->addEdges(ends, edges);
 
 		return true;
 	}

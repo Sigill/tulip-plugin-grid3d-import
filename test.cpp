@@ -20,9 +20,10 @@ int main(int argc, char* argv[]) {
   data.set<int>("Width", 20);
   data.set<int>("Height", 20);
   data.set<int>("Depth", 20);
-  data.set<StringCollection>("Connectivity", StringCollection("4"));
   data.set<bool>("Positionning", true);
   data.set<double>("Spacing", 1.0);
+  data.set<StringCollection>("Neighborhood type", StringCollection("Circular"));
+  data.set<double>("Neighborhood radius", 1.0);
 
   Graph *graph = tlp::importGraph("Grid 3D", data);
 
